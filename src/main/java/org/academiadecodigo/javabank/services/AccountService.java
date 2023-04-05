@@ -1,6 +1,9 @@
 package org.academiadecodigo.javabank.services;
 
-import org.academiadecodigo.javabank.model.account.Account;
+import org.academiadecodigo.javabank.exceptions.AccountNotFoundException;
+import org.academiadecodigo.javabank.exceptions.CustomerNotFoundException;
+import org.academiadecodigo.javabank.exceptions.TransactionInvalidException;
+import org.academiadecodigo.javabank.persistence.model.account.Account;
 
 /**
  * Common interface for account services, provides methods to manage accounts and perform account transactions
@@ -8,34 +11,36 @@ import org.academiadecodigo.javabank.model.account.Account;
 public interface AccountService {
 
     /**
-     * Adds an account to the service
+     * Gets the account with the given id
      *
-     * @param account the account to add
+     * @param id the account id
+     * @return the account
      */
-    void add(Account account);
+    Account get(Integer id);
 
     /**
-     * Perform an {@link Account} deposit
+     * Performs an {@link Account} deposit
      *
-     * @param id     the id of the account
-     * @param amount the amount to deposit
+     * @param id         the account id
+     * @param customerId the customer id
+     * @param amount     the amount to deposit
+     * @throws AccountNotFoundException
+     * @throws CustomerNotFoundException
+     * @throws TransactionInvalidException
      */
-    void deposit(int id, double amount);
+    void deposit(Integer id, Integer customerId, double amount)
+            throws AccountNotFoundException, CustomerNotFoundException, TransactionInvalidException;
 
     /**
      * Perform an {@link Account} withdrawal
      *
-     * @param id     the id of the account
-     * @param amount the amount to withdraw
+     * @param id         the account id
+     * @param customerId the customer id
+     * @param amount     the amount to withdraw
+     * @throws AccountNotFoundException
+     * @throws CustomerNotFoundException
+     * @throws TransactionInvalidException
      */
-    void withdraw(int id, double amount);
-
-    /**
-     * Performs a transfer between two {@link Account} if possible
-     *
-     * @param srcId  the source account id
-     * @param dstId  the destination account id
-     * @param amount the amount to transfer
-     */
-    void transfer(int srcId, int dstId, double amount);
+    void withdraw(Integer id, Integer customerId, double amount)
+            throws AccountNotFoundException, CustomerNotFoundException, TransactionInvalidException;
 }

@@ -1,73 +1,121 @@
 package org.academiadecodigo.javabank.services;
 
-import org.academiadecodigo.javabank.model.account.Account;
-import org.academiadecodigo.javabank.model.account.AccountType;
+import org.academiadecodigo.javabank.exceptions.AccountNotFoundException;
+import org.academiadecodigo.javabank.exceptions.CustomerNotFoundException;
+import org.academiadecodigo.javabank.exceptions.TransactionInvalidException;
+import org.academiadecodigo.javabank.persistence.dao.AccountDao;
+import org.academiadecodigo.javabank.persistence.dao.CustomerDao;
+import org.academiadecodigo.javabank.persistence.model.Customer;
+import org.academiadecodigo.javabank.persistence.model.account.Account;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Optional;
 
 /**
  * An {@link AccountService} implementation
  */
+@Service
 public class AccountServiceImpl implements AccountService {
 
-    private Map<Integer, Account> accountMap = new HashMap<>();
+    private AccountDao accountDao;
+    private CustomerDao customerDao;
 
     /**
-     * Gets the next account id
+     * Sets the account data access object
      *
-     * @return the next id
+     * @param accountDao the account DAO to set
      */
-    private Integer getNextId() {
-        return accountMap.isEmpty() ? 1 : Collections.max(accountMap.keySet()) + 1;
+    @Autowired
+    public void setAccountDao(AccountDao accountDao) {
+        this.accountDao = accountDao;
     }
 
     /**
-     * @see AccountService#add(Account)
+     * Sets the customer data access object
+     *
+     * @param customerDao the customer DAO to set
      */
-    public void add(Account account) {
+    @Autowired
+    public void setCustomerDao(CustomerDao customerDao) {
+        this.customerDao = customerDao;
+    }
 
-        if (account.getId() == null) {
-            account.setId(getNextId());
+    /**
+     * @see AccountService#get(Integer)
+     */
+    @Override
+    public Account get(Integer id) {
+        return accountDao.findById(id);
+    }
+
+    /**
+     * @see AccountService#deposit(Integer, Integer, double)
+     */
+    @Transactional
+    @Override
+    public void deposit(Integer id, Integer customerId, double amount)
+            throws AccountNotFoundException, CustomerNotFoundException, TransactionInvalidException {
+
+        Customer customer = Optional.ofNullable(customerDao.findById(customerId))
+                .orElseThrow(CustomerNotFoundException::new);
+
+        Account account = Optional.ofNullable(accountDao.findById(id))
+                .orElseThrow(AccountNotFoundException::new);
+
+        if (!account.getCustomer().getId().equals(customerId)) {
+            throw new AccountNotFoundException();
         }
 
-        accountMap.put(account.getId(), account);
+        if (!account.canCredit(amount)) {
+            throw new TransactionInvalidException();
+        }
+
+        for (Account a : customer.getAccounts()) {
+            if (a.getId().equals(id)) {
+                a.credit(amount);
+            }
+        }
+
+        customerDao.saveOrUpdate(customer);
     }
 
     /**
-     * @see AccountService#deposit(int, double)
+     * @see AccountService#withdraw(Integer, Integer, double)
      */
-    public void deposit(int id, double amount) {
-        accountMap.get(id).credit(amount);
-    }
+    @Transactional
+    @Override
+    public void withdraw(Integer id, Integer customerId, double amount)
+            throws AccountNotFoundException, CustomerNotFoundException, TransactionInvalidException {
 
-    /**
-     * @see AccountService#withdraw(int, double)
-     */
-    public void withdraw(int id, double amount) {
+        Customer customer = Optional.ofNullable(customerDao.findById(customerId))
+                .orElseThrow(CustomerNotFoundException::new);
 
-        Account account = accountMap.get(id);
+        Account account = Optional.ofNullable(accountDao.findById(id))
+                .orElseThrow(AccountNotFoundException::new);
 
+        // in UI the user cannot click on Withdraw so this is here for safety because the user can bypass
+        // the UI limitation easily
         if (!account.canWithdraw()) {
-            return;
+            throw new TransactionInvalidException();
         }
 
-        accountMap.get(id).debit(amount);
-    }
-
-    /**
-     * @see AccountService#transfer(int, int, double)
-     */
-    public void transfer(int srcId, int dstId, double amount) {
-
-        Account srcAccount = accountMap.get(srcId);
-        Account dstAccount = accountMap.get(dstId);
+        if (!account.getCustomer().getId().equals(customerId)) {
+            throw new AccountNotFoundException();
+        }
 
         // make sure transaction can be performed
-        if (srcAccount.canDebit(amount) && dstAccount.canCredit(amount)) {
-            srcAccount.debit(amount);
-            dstAccount.credit(amount);
+        if (!account.canDebit(amount)) {
+            throw new TransactionInvalidException();
         }
+
+        for (Account a : customer.getAccounts()) {
+            if (a.getId().equals(id)) {
+                a.debit(amount);
+            }
+        }
+
+        customerDao.saveOrUpdate(customer);
     }
 }
